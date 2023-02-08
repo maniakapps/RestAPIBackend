@@ -18,81 +18,61 @@ from api.models import Company
 from api.serializers import CompanySerializer
 from api.serializers import MyTokenObtainPairSerializer, RegisterSerializer
 
+from rest_framework import permissions
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+
+
+@permission_classes([permissions.IsAuthenticated])
+@api_view(['GET'])
+def company_view(request, id: int = 0):
+    """
+    returns the companies list or a certain company by its id
+
+    :param id: the id of the company to query
+    :param request: a simple Http request
+    :return: an API response with the selected company
+    """
+    if id > 0:
+        try:
+            company = Company.objects.get(pk=id)
+            if not request.user.has_perm('view_company', company):
+                return Response({'message': 'Not authorized to view company.'}, status=403)
+            serializer = CompanySerializer(company, context={'request': request}, many=False)
+            return Response({'message': 'Success.', 'company': serializer.data})
+        except Company.DoesNotExist:
+            return Response({'message': 'Company not found.'}, status=404)
+
+    else:
+        if not request.user.has_perm('view_company', Company):
+            return Response({'message': 'Not authorized to view companies.'}, status=403)
+        data = Company.objects.all()
+        serializer = CompanySerializer(data, context={'request': request}, many=True)
+        return Response({'message': 'Success.', 'companies': serializer.data})
 
 @permission_classes([IsAuthenticated])
-class CompanyView(APIView):
+def post(self, request) -> JsonResponse:
     """
-    Company rest view class.
+    Add a new company
+
+    :param request: a simple Http request
+    :return: a response from the API
     """
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
-    def get(self, request, id: int = 0) -> JsonResponse:
-        """
-        returns the companies list or a certain company by its id
-
-        :param id: the id of the company to query
-        :param request: a simple Http request
-        :return: an API response with the selected company
-        """
-        if id > 0:
-            try:
-                company = Company.objects.get(pk=id)
-                serializer = CompanySerializer(company, context={'request': request}, many=False)
-                datos = {
-                    'message': 'Success.',
-                    'company': serializer.data
-                }
-                return JsonResponse(datos)
-            except Company.DoesNotExist:
-                datos = {
-                    'message': 'Company not found.'
-                }
-                return JsonResponse(datos)
-
-        else:
-            data = Company.objects.all()
-            serializer = CompanySerializer(data, context={'request': request}, many=True)
+    jd = json.loads(request.body)
+    num_results = Company.objects.filter(name=jd['name']).count()
+    if num_results < 1:
+        serializer = CompanySerializer(data=jd)
+        if serializer.is_valid():
+            serializer.save()
             datos = {
-                'message': 'Success.',
-                'companies': serializer.data
+                'message': 'Success.'
             }
             return JsonResponse(datos)
-
-    def post(self, request) -> JsonResponse:
-        """
-         Add a new company
-
-         :param request: a simple Http request
-         :return: a response from the API
-         """
-        permission_classes = (IsAuthenticated,)
-        jd = json.loads(request.body)
-        if len(Company.objects.all()) > 0:
-            num_results = Company.objects.filter(name=jd['name']).count()
-            if num_results < 1:
-                serializer = CompanySerializer(data=jd)
-                if serializer.is_valid():
-                    serializer.save()
-                    datos = {
-                        'message': 'Success.'
-                    }
-                    return JsonResponse(datos)
-            else:
-                datos = {
-                    'message': 'Company already exists.'
-                }
-                return JsonResponse(datos)
-        else:
-            serializer = CompanySerializer(data=jd)
-            if serializer.is_valid():
-                serializer.save()
-                datos = {
-                    'message': 'Success.'
-                }
-                return JsonResponse(datos)
+    else:
+        datos = {
+            'message': 'Company already exists.'
+        }
+        return JsonResponse(datos, status=400)
 
     def put(self, request, id: int) -> JsonResponse:
         """
