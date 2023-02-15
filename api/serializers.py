@@ -1,9 +1,11 @@
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
+
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.validators import UniqueValidator
-
-from django.contrib.auth.models import User
-from django.contrib.auth.password_validation import validate_password
 
 from .models import Company
 
@@ -30,10 +32,27 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
 
+class PasswordSerializer(serializers.CharField):
+    """Custom password serializer that adds additional password validation rules"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.validators.append(validate_password)
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     """Serializes the register form data"""
-    password = serializers.CharField(
-        write_only=True, required=True, validators=[validate_password])
+    username = serializers.CharField(
+        validators=[
+            RegexValidator(
+                regex='^[a-zA-Z0-9]+$',
+                message='Username can only contain letters and numbers',
+                code='invalid_username'
+            ),
+            UniqueValidator(queryset=User.objects.all())
+        ]
+    )
+    password = PasswordSerializer(write_only=True, required=True)
     password2 = serializers.HiddenField(write_only=True)
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])
 
@@ -49,9 +68,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({'password': 'Password fields must match.'})
 
-        password = attrs.pop('password2')
         attrs['email'] = attrs.get('email').lower()
-        validate_password(attrs['password'])
 
         return attrs
 
@@ -64,4 +81,3 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
 
         return user
-
