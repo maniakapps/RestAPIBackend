@@ -13,6 +13,7 @@ urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='auth_register'),
     path('token/', views.MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('refresh-token/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('test/', views.testEndPoint, name='test'),
+    path('test/', views.TestEndpointView, name='test'),
     path('', views.getRoutes)
+
 ]
